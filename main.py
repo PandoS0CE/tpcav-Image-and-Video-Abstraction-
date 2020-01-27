@@ -18,6 +18,10 @@ def structure_tensor_calculation(image_input):
 
     image_input = image_input.astype(float)
 
+    # print(type(image_input[0][0]))
+
+    # print_debug(image_input)
+
     height,width = image_input.shape
     # compute rotational symmetric derivative filter
     p1 = 0.183
@@ -63,18 +67,29 @@ def compute_eigenvalue(S):
 
     lambda1 = np.zeros(E.shape)
     lambda2 = np.zeros(E.shape)
+    coeff1 = np.zeros(E.shape)
+    determinant = np.zeros(E.shape)
 
     # maximum and minimum eigenvalues respectively
     height, width = E.shape
     for i in range(height):
         for j in range(width):
-            lambda1[i][j] = (E[i][j] + G[i][j] + math.sqrt((E[i][j] - G[i][j])**2 + 4 * F[i][j]**2))/2.0
-            lambda2[i][j] = (E[i][j] + G[i][j] - math.sqrt((E[i][j] - G[i][j])**2 + 4 * F[i][j]**2))/2.0
+            if(F[i][j] > -1.0 and F[i][j] < 1.0):
+                lambda1[i][j] = 0.0
+                lambda2[i][j] = 0.0
+            else:
+                coeff1[i][j] = E[i][j] + G[i][j]
+                determinant[i][j] = float((E[i][j] - G[i][j])**2 + 4 * F[i][j]**2)
 
-    # print(lambda1[288][185])
-    # print(lambda2[288][185])
-    # cv2.imshow("lambda2", cv2.normalize(lambda2,None,0,255,cv2.NORM_MINMAX,cv2.CV_8U))
-    # cv2.waitKey(0)
+                lambda1[i][j] = (coeff1[i][j] + math.sqrt(determinant[i][j])) / 2.0
+                lambda2[i][j] = (coeff1[i][j] - math.sqrt(determinant[i][j])) / 2.0
+            
+
+            # lambda1[i][j] = (E[i][j] + G[i][j] + math.sqrt((E[i][j] - G[i][j])**2 + 4 * F[i][j]**2))/2.0
+            # lambda2[i][j] = (E[i][j] + G[i][j] - math.sqrt((E[i][j] - G[i][j])**2 + 4 * F[i][j]**2))/2.0
+
+    # print_debug(coeff1)
+    # print_debug(determinant)
 
     # print_debug(lambda1)
     # print_debug(lambda2)
@@ -95,9 +110,6 @@ def compute_eigenvector(S, lambda1, lambda2):
         for j in range(width):
             eta[i][j] = normalize(np.array([F[i][j], (lambda1[i][j] - E[i][j])]))
             xi[i][j] = normalize([(lambda1[i][j] - E[i][j]),-F[i][j]])
-
-    # print(np.amin(xi))
-    # print(np.amax(xi))
 
     return eta, xi
 
@@ -162,7 +174,7 @@ def euler_integration(img, xi, a_sigma):
             img_result[i_pad][j_pad] = v_result
     return img_result
 
-def adaptative_smoothing(img_input,lambda1,lambda2,xi,S,sigma = 6):
+def adaptative_smoothing(img_input,lambda1,lambda2,xi,eta,S,sigma = 6):
     # compute the adaptative gaussian sigma
     A = np.zeros(lambda1.shape)
     adapted_sigma = np.zeros(lambda1.shape)
@@ -172,35 +184,27 @@ def adaptative_smoothing(img_input,lambda1,lambda2,xi,S,sigma = 6):
     # F = S[1][0]
     # G = S[1][1]
 
-    # height, width = lambda1.shape
-    # for i in range(height):
-    #     for j in range(width):
-    #         if(E[i][j] + G[i][j] != 0.0):
-    #             A[i][j] = math.sqrt((E[i][j]-G[i][j])**2 + 4 * F[i][j]**2)/(E[i][j] + G[i][j])
-    #         else:
-    #             A[i][j] = 0.0
-    #         adapted_sigma[i][j] = 1/4 * sigma * (1+A[i][j])**2
+    height, width = lambda1.shape
+    alpha = 0.1
+    for i in range(height):
+        for j in range(width):
+            if(lambda1[i][j]-lambda2[i][j] == 0):
+                A[i][j] = alpha
+            else:
+                A[i][j] = alpha + (1-alpha) * math.exp((-1000.0)/(lambda1[i][j]-lambda2[i][j]))
+            adapted_sigma[i][j] = 1/4 * sigma * (1+A[i][j])**2
 
-    # print(A[185][185])
-    # print(adapted_sigma[288][185])
     #--------------------------
 
     # compute an adaptive sigma for each pixel
-    height, width = lambda1.shape
-    for i in range(height):
-        for j in range(width):
-            if(lambda1[i][j] + lambda2[i][j] != 0.0):
-                A[i][j] = (lambda1[i][j] - lambda2[i][j])/(lambda1[i][j] + lambda2[i][j])
-            else:
-                A[i][j] = 1.0
-            adapted_sigma[i][j] = 1/4 * sigma * (1+A[i][j])**2
-
-    # cv2.imshow("lambda1", cv2.normalize(lambda1,None,0,255,cv2.NORM_MINMAX,cv2.CV_8U))
-    # cv2.waitKey(0)
-    
-    # cv2.imshow("A^2", cv2.normalize(A,None,0,255,cv2.NORM_MINMAX,cv2.CV_8U))
-    # cv2.imshow("A^2", A**2)
-    # cv2.waitKey(0)
+    # height, width = lambda1.shape
+    # for i in range(height):
+    #     for j in range(width):
+    #         if(lambda1[i][j] + lambda2[i][j] != 0.0):
+    #             A[i][j] = (lambda1[i][j] - lambda2[i][j])/(lambda1[i][j] + lambda2[i][j])
+    #         else:
+    #             A[i][j] = 1.0
+    #         adapted_sigma[i][j] = 1/4 * sigma * (1+A[i][j])**2
 
     print_debug(A)
 
@@ -232,7 +236,7 @@ def main():
     eta, xi = compute_eigenvector(S,lambda1, lambda2)
     print("[INFO] Compute eigenvectors -- done")
 
-    adaptative_smoothing(img,lambda1,lambda2,xi,S)
+    adaptative_smoothing(img,lambda1,lambda2,xi,eta,S)
     print("[INFO] adaptive_smoothing -- done")
     
     # show_image(S[1][1])
