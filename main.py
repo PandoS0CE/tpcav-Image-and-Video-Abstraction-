@@ -122,17 +122,20 @@ def add_padding(img,size):
     right = left
 
     img = cv2.copyMakeBorder(img, top, bottom, left, right, borderType, None, None)
+    return img
 
 def euler_integration(img, xi, a_sigma):
-    img_result = img.copy()
+    img_result = np.zeros(img.shape)
 
     size = 15
-    add_padding(img,size)
+    img = add_padding(img,size)
+
+    # print_debug(img)
 
     height, width,_ = img.shape
     l = np.zeros((img_result.shape[0], img_result.shape[1]), dtype=np.uint8)
-    for i in range(size,height+size):
-        for j in range(size,width+size):
+    for i in range(size,height-size,1):
+        for j in range(size,width-size,1):
             i_pad = i - size
             j_pad = j - size
 
@@ -153,8 +156,8 @@ def euler_integration(img, xi, a_sigma):
                 # sign<t_k-1,xi> * xi
                 t_minus.append(np.dot(np.sign(np.dot(t_minus[k-1],xi[i_pad][j_pad])),xi[i_pad][j_pad]))
                 t_plus.append(np.dot(np.sign(np.dot(t_plus[k-1],xi[i_pad][j_pad])),xi[i_pad][j_pad]))
-                x_minus.append(np.add(x_minus[k-1], t_minus[k-1]*10).astype("int"))
-                x_plus.append(np.add(x_plus[k-1], t_plus[k-1]*10).astype("int"))
+                x_minus.append(np.add(x_minus[k-1], t_minus[k-1]).astype("int"))
+                x_plus.append(np.add(x_plus[k-1], t_plus[k-1]).astype("int"))
 
             
             np.asarray(x_minus,dtype=np.int)
@@ -168,13 +171,14 @@ def euler_integration(img, xi, a_sigma):
             v_result = kernel[l[i_pad][j_pad]][0]*img[x_minus[0][0]][x_minus[0][1]]
             # print(x_minus)
             for k in range(1,l[i_pad][j_pad]):
+                # print(x_minus[k][1])
                 v_result = v_result + kernel[l[i_pad][j_pad]-k][0]*img[x_minus[k][0]][x_minus[k][1]] #probleme d'acces a cet endroit
                 v_result = v_result + kernel[l[i_pad][j_pad]+k][0]*img[x_plus[k][0]][x_plus[k][1]]
             v_result = v_result / K_norm
             img_result[i_pad][j_pad] = v_result
     return img_result
 
-def adaptative_smoothing(img_input,lambda1,lambda2,xi,eta,S,sigma = 6):
+def adaptative_smoothing(img_input,lambda1,lambda2,xi,S,n = 1000.0,sigma = 6.0):
     # compute the adaptative gaussian sigma
     A = np.zeros(lambda1.shape)
     adapted_sigma = np.zeros(lambda1.shape)
@@ -191,7 +195,7 @@ def adaptative_smoothing(img_input,lambda1,lambda2,xi,eta,S,sigma = 6):
             if(lambda1[i][j]-lambda2[i][j] == 0):
                 A[i][j] = alpha
             else:
-                A[i][j] = alpha + (1-alpha) * math.exp((-1000.0)/(lambda1[i][j]-lambda2[i][j]))
+                A[i][j] = alpha + (1-alpha) * math.exp((-n)/(lambda1[i][j]-lambda2[i][j]))
             adapted_sigma[i][j] = 1/4 * sigma * (1+A[i][j])**2
 
     #--------------------------
@@ -206,12 +210,16 @@ def adaptative_smoothing(img_input,lambda1,lambda2,xi,eta,S,sigma = 6):
     #             A[i][j] = 1.0
     #         adapted_sigma[i][j] = 1/4 * sigma * (1+A[i][j])**2
 
-    print_debug(A)
+    # print_debug(A)
 
     # euler integration
-    # euler_integration(img_input, xi, adapted_sigma)
+    img_input = img_input.astype(float)
+    return euler_integration(img_input, xi, adapted_sigma)
 
 def save_image(image, image_name):
+    image = np.uint8(image)
+    # print_debug(image)
+    image = cv2.cvtColor(image,cv2.COLOR_BGR2RGB)
     cv2.imwrite('./result_'+image_name, image)
 
 def show_image(image):
@@ -222,6 +230,7 @@ def show_image(image):
 def main():
     image_name = 'dogs.jpg'
     img = cv2.imread('./images/'+image_name)
+    img = cv2.cvtColor(img,cv2.COLOR_BGR2RGB)
     img_gray = cv2.cvtColor(img,cv2.COLOR_RGB2GRAY)
 
     S = structure_tensor_calculation(img_gray)
@@ -236,11 +245,11 @@ def main():
     eta, xi = compute_eigenvector(S,lambda1, lambda2)
     print("[INFO] Compute eigenvectors -- done")
 
-    adaptative_smoothing(img,lambda1,lambda2,xi,eta,S)
+    blur_img = adaptative_smoothing(img,lambda1,lambda2,xi,S)
     print("[INFO] adaptive_smoothing -- done")
     
     # show_image(S[1][1])
-    save_image(img_gray,image_name)
+    save_image(blur_img,image_name)
 
 # ---------------------------------------------------------------------
 
