@@ -220,7 +220,7 @@ def save_image(image, image_name):
     image = np.uint8(image)
     # print_debug(image)
     image = cv2.cvtColor(image,cv2.COLOR_BGR2RGB)
-    cv2.imwrite('./result_'+image_name, image)
+    cv2.imwrite('./image_result/result_'+image_name, image)
 
 def show_image(image):
     #print the image
@@ -228,7 +228,7 @@ def show_image(image):
     cv2.waitKey()
 
 def main():
-    image_name = 'dogs.jpg'
+    image_name = 'macaw.jpg'
     img = cv2.imread('./images/'+image_name)
     img = cv2.cvtColor(img,cv2.COLOR_BGR2RGB)
     img_gray = cv2.cvtColor(img,cv2.COLOR_RGB2GRAY)
