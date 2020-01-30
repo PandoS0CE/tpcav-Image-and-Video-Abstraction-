@@ -44,7 +44,7 @@ def structure_tensor_calculation(image_input):
             F[i][j] = fx[i][j] * fy[i][j]
             G[i][j] = fy[i][j] * fy[i][j]
 
-    S = [[E,F],[F,G]]
+    S = [E,F,G]
 
     # print_debug(fx)
     # print_debug(fy)
@@ -55,15 +55,21 @@ def structure_tensor_calculation(image_input):
 
     return S
 
+def structure_tensor_smoothing(S):
+    matrice = np.array([[1.0, 2.0, 1.0], [2.0, 4.0, 2.0], [1.0, 2.0, 1.0]], float)
+    kernel = 1.0/16.0 * matrice
+
+    S[0] = cv2.filter2D(S[0],-1,kernel)
+    S[1] = cv2.filter2D(S[1],-1,kernel)
+    S[2] = cv2.filter2D(S[2],-1,kernel)
+    
+    return S
+
 def compute_eigenvalue(S):
 
-    E = S[0][0]
-    F = S[1][0]
-    G = S[1][1]
-
-    # print(E[288][185])
-    # print(F[288][185])
-    # print(G[288][185])
+    E = S[0]
+    F = S[1]
+    G = S[2]
 
     lambda1 = np.zeros(E.shape)
     lambda2 = np.zeros(E.shape)
@@ -83,10 +89,6 @@ def compute_eigenvalue(S):
 
                 lambda1[i][j] = (coeff1[i][j] + math.sqrt(determinant[i][j])) / 2.0
                 lambda2[i][j] = (coeff1[i][j] - math.sqrt(determinant[i][j])) / 2.0
-            
-
-            # lambda1[i][j] = (E[i][j] + G[i][j] + math.sqrt((E[i][j] - G[i][j])**2 + 4 * F[i][j]**2))/2.0
-            # lambda2[i][j] = (E[i][j] + G[i][j] - math.sqrt((E[i][j] - G[i][j])**2 + 4 * F[i][j]**2))/2.0
 
     # print_debug(coeff1)
     # print_debug(determinant)
@@ -98,8 +100,8 @@ def compute_eigenvalue(S):
 
 def compute_eigenvector(S, lambda1, lambda2):
 
-    E = S[0][0]
-    F = S[1][0]
+    E = S[0]
+    F = S[1]
 
     # maximum and minimum eigenvectors respectively
     height, width = E.shape
@@ -183,11 +185,6 @@ def adaptative_smoothing(img_input,lambda1,lambda2,xi,S,n = 1000.0,sigma = 6.0):
     A = np.zeros(lambda1.shape)
     adapted_sigma = np.zeros(lambda1.shape)
 
-    # Debug area --------------
-    # E = S[0][0]
-    # F = S[1][0]
-    # G = S[1][1]
-
     height, width = lambda1.shape
     alpha = 0.1
     for i in range(height):
@@ -197,8 +194,6 @@ def adaptative_smoothing(img_input,lambda1,lambda2,xi,S,n = 1000.0,sigma = 6.0):
             else:
                 A[i][j] = alpha + (1-alpha) * math.exp((-n)/(lambda1[i][j]-lambda2[i][j]))
             adapted_sigma[i][j] = 1/4 * sigma * (1+A[i][j])**2
-
-    #--------------------------
 
     # compute an adaptive sigma for each pixel
     # height, width = lambda1.shape
@@ -228,7 +223,8 @@ def show_image(image):
     cv2.waitKey()
 
 def main():
-    image_name = 'macaw.jpg'
+    image_name = 'lion.jpg'
+    # image_name = 'matthiostexture.PNG'
     img = cv2.imread('./images/'+image_name)
     img = cv2.cvtColor(img,cv2.COLOR_BGR2RGB)
     img_gray = cv2.cvtColor(img,cv2.COLOR_RGB2GRAY)
@@ -236,11 +232,13 @@ def main():
     S = structure_tensor_calculation(img_gray)
     print("[INFO] Compute tensor structure -- done")
 
+    print_debug(S[0])
+    S = structure_tensor_smoothing(S)
+    print("[INFO] Smoothing tensor structure -- done")
+    print_debug(S[0])
+
     lambda1,lambda2 = compute_eigenvalue(S)
     print("[INFO] Compute eigenvalues -- done")
-
-    # cv2.imshow("kes",cv2.normalize(lambda1,None,0,255,cv2.NORM_MINMAX,cv2.CV_8U))
-    # cv2.waitKey(0)
 
     eta, xi = compute_eigenvector(S,lambda1, lambda2)
     print("[INFO] Compute eigenvectors -- done")
@@ -248,7 +246,6 @@ def main():
     blur_img = adaptative_smoothing(img,lambda1,lambda2,xi,S)
     print("[INFO] adaptive_smoothing -- done")
     
-    # show_image(S[1][1])
     save_image(blur_img,image_name)
 
 # ---------------------------------------------------------------------
