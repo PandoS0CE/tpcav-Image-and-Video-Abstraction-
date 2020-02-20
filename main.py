@@ -130,96 +130,96 @@ def add_padding(img,size):
     return img
 
 def euler_integration(img, xi, a_sigma):
-    img_result = np.zeros(img.shape, float)
-
-    # add padding to the edges
-    size = 15
-    img = add_padding(img,size)
-
+    img_result = np.zeros(img.shape)
     height, width,_ = img.shape
-    l = np.zeros((img_result.shape[0], img_result.shape[1]), dtype=np.uint8)
-    for i in range(size,height-size,1):
-        for j in range(size,width-size,1):
-            i_pad = i - size
-            j_pad = j - size
-
+    for i in range(height):
+        for j in range(width):
             # compute l
-            l[i_pad][j_pad] = math.ceil(2*a_sigma[i_pad][j_pad])
-            # print("l == " + str(l[i_pad][j_pad]))
-
-            # compute each t_k and x_k
-            t_minus = []
-            t_plus = []
-            t_minus.append(-xi[i_pad][j_pad])
-            t_plus.append(xi[i_pad][j_pad])
-            x_minus = []
-            x_plus = []
-            x_minus.append(np.array([i,j]))
-            x_plus.append(np.array([i,j]))
-
-            for k in range(1,l[i_pad][j_pad]):
-                # sign<t_k-1,xi> * xi
-                t_minus.append(np.dot(np.sign(np.dot(t_minus[k-1],xi[i_pad][j_pad])),xi[i_pad][j_pad]))
-                t_plus.append(np.dot(np.sign(np.dot(t_plus[k-1],xi[i_pad][j_pad])),xi[i_pad][j_pad]))
-                x_minus.append(np.add(x_minus[k-1], t_minus[k-1]).astype("int"))
-                x_plus.append(np.add(x_plus[k-1], t_plus[k-1]).astype("int"))
-
-            np.asarray(x_minus,dtype=np.int)
-            np.asarray(x_plus,dtype=np.int)
-
-            # create 1 dimensional gaussian with a_sigma
-            kernel = cv2.getGaussianKernel( 2*l[i_pad][j_pad]+1, a_sigma[i_pad][j_pad])
-            # apply the gaussian kernel with the x_k
-            v_result = kernel[0]*img[x_minus[0][0]][x_minus[0][1]]
-            for k in range(1,l[i_pad][j_pad]):
-                v_result = v_result + kernel[l[i_pad][j_pad]+k]* img[x_plus[k][0]][x_plus[k][1]]
-                v_result = v_result + kernel[l[i_pad][j_pad]+k]* img[x_minus[k][0]][x_minus[k][1]]
-            # v_result = v_result / np.sum(cv2.getGaussianKernel( 2 * l[i_pad][j_pad] + 1, a_sigma[i_pad][j_pad]))
-            img_result[i_pad][j_pad] = v_result
-    return img_result
-
-def euler_integration_test(img, xi, a_sigma):
-
-    # add padding to the edges
-    size = 15
-    img = add_padding(img,size)
-
-    height, width,_ = img.shape
-    for i in range(size,height-size,1):
-        for j in range(size,width-size,1):
-            i_pad = i - size
-            j_pad = j - size
-
-            # compute l
-            l = math.ceil(2*a_sigma[i_pad][j_pad])
+            l = math.ceil(2*a_sigma[i][j])
             # print("l = " + str(l))
 
             # compute each t_k and x_k
             t_minus = []
             t_plus = []
-            t_minus.append(-xi[i_pad][j_pad])
-            t_plus.append(xi[i_pad][j_pad])
+            t_minus.append(-xi[i][j])
+            t_plus.append(xi[i][j])
             x_minus = []
             x_plus = []
-            x_minus.append(np.array([i,j]))
-            x_plus.append(np.array([i,j]))
+            x_minus.append(np.array([i,j],dtype=int))
+            x_plus.append(np.array([i,j],dtype=int))
 
             for k in range(1,l+1):
                 # sign<t_k-1,xi> * xi
-                t_minus.append(np.sign(np.dot(t_minus[k-1],xi[i_pad][j_pad])) * xi[i_pad][j_pad])
-                t_plus.append(np.sign(np.dot(t_plus[k-1],xi[i_pad][j_pad])) * xi[i_pad][j_pad])
+                t_minus.append(np.sign(np.dot(t_minus[k-1],xi[x_minus[k-1][0]][x_minus[k-1][1]])) * xi[x_minus[k-1][0]][x_minus[k-1][1]])
+                t_plus.append(np.sign(np.dot(t_plus[k-1],xi[x_plus[k-1][0]][x_plus[k-1][1]])) * xi[x_plus[k-1][0]][x_plus[k-1][1]])
+                x_minus.append(np.add(x_minus[k-1], t_minus[k-1]).astype("int"))
+                x_plus.append(np.add(x_plus[k-1], t_plus[k-1]).astype("int"))
+            np.asarray(x_minus)
+            np.asarray(x_plus)
+            
+            # create 1 dimensional gaussian with a_sigma
+            kernel = cv2.getGaussianKernel( 2*l+1, a_sigma[i][j])
+            # apply the gaussian kernel with the x_k
+            v_result = kernel[l]*img[x_minus[0][0]][x_minus[0][1]]
+            for k in range(1,l):
+                v_result = v_result + kernel[l+k]* img[x_plus[k][0]][x_plus[k][1]]
+                v_result = v_result + kernel[l-k]* img[x_minus[k][0]][x_minus[k][1]]
+            # v_result = v_result / np.sum(cv2.getGaussianKernel( 2 * l[i_pad][j_pad] + 1, a_sigma[i_pad][j_pad]))
+            img_result[i][j] = v_result
+      
+    return img_result
+
+def euler_integration_test(img, xi, a_sigma):
+    img_result = np.zeros(img.shape)
+    height, width,_ = img.shape
+    for i in range(height):
+        for j in range(width):
+            # compute l
+            l = math.ceil(2*a_sigma[i][j])
+            # print("l = " + str(l))
+
+            # compute each t_k and x_k
+            t_minus = []
+            t_plus = []
+            t_minus.append(-xi[i][j])
+            t_plus.append(xi[i][j])
+            x_minus = []
+            x_plus = []
+            x_minus.append(np.array([i,j],dtype=int))
+            x_plus.append(np.array([i,j],dtype=int))
+
+            for k in range(1,l+1):
+                # sign<t_k-1,xi> * xi
+                t_minus.append(np.sign(np.dot(t_minus[k-1],xi[x_minus[k-1][0]][x_minus[k-1][1]])) * xi[x_minus[k-1][0]][x_minus[k-1][1]])
+                t_plus.append(np.sign(np.dot(t_plus[k-1],xi[x_plus[k-1][0]][x_plus[k-1][1]])) * xi[x_plus[k-1][0]][x_plus[k-1][1]])
                 x_minus.append(np.add(x_minus[k-1], t_minus[k-1]).astype("int"))
                 x_plus.append(np.add(x_plus[k-1], t_plus[k-1]).astype("int"))
 
+            np.asarray(t_minus)
+            np.asarray(t_plus)
             np.asarray(x_minus)
             np.asarray(x_plus)
 
-            if(i_pad % 10 == 0 and j_pad % 10 == 0):
-                for k in range(1,l):
-                    img[x_plus[k][0]][x_plus[k][1]] = (255,0,0)
-                    img[x_minus[k][0]][x_minus[k][1]] = (255,0,0)
+            # print(str(i) + ", " + str(j))
+            # print("t_plus : " + str(t_plus))
+            # print("x_plus : " + str(x_plus))
+
+            # if(i % 10 == 0 and j % 10 == 0):
+            #     img[x_plus[0][0]][x_plus[0][1]] = (255,0,0)
+            #     for k in range(1,l+1):
+            #         img[x_plus[k][0]][x_plus[k][1]] = (255,0,0)
+            #         img[x_minus[k][0]][x_minus[k][1]] = (255,0,0)
+            
+            ## create 1 dimensional gaussian with a_sigma
+            kernel = cv2.getGaussianKernel( 2*l+1, a_sigma[i][j])
+            # apply the gaussian kernel with the x_k
+            v_result = kernel[l]*img[x_minus[0][0]][x_minus[0][1]]
+            for k in range(1,l+1):
+                v_result = v_result + kernel[l+k]* img[x_plus[k][0]][x_plus[k][1]]
+                v_result = v_result + kernel[l-k]* img[x_minus[k][0]][x_minus[k][1]]
+            img_result[i][j] = np.uint8(v_result)
       
-    return img
+    return img_result
 
 def adaptive_smoothing(img_input,lambda1,lambda2,xi,S,n = 1000.0,sigma = 6.0):
     # compute the adaptive gaussian sigma
@@ -236,31 +236,18 @@ def adaptive_smoothing(img_input,lambda1,lambda2,xi,S,n = 1000.0,sigma = 6.0):
                 A[i][j] = alpha + (1-alpha) * math.exp((-n)/(lambda1[i][j]-lambda2[i][j]))
             adapted_sigma[i][j] = 1/4 * sigma * (1+A[i][j])**2
 
-    # print_debug(adapted_sigma)
-
-    # compute an adaptive sigma for each pixel
-    # height, width = lambda1.shape
-    # for i in range(height):
-    #     for j in range(width):
-    #         if(lambda1[i][j] + lambda2[i][j] != 0.0):
-    #             A[i][j] = (lambda1[i][j] - lambda2[i][j])/(lambda1[i][j] + lambda2[i][j])
-    #         else:
-    #             A[i][j] = 0.0
-    #         adapted_sigma[i][j] = 1/4 * sigma * (1+A[i][j])**2
-
-    # print_debug(A)
-
     # euler integration
     img_input = img_input.astype(float)
 
-    k_max = 1
-    for k in range(0,k_max):
-        # img_input = euler_integration(img_input, xi, adapted_sigma)
-        img_input = euler_integration_test(img_input, xi, adapted_sigma)
-        print("  [INFO] adaptive_smoothing -- " + str((k+1)/k_max*100) + "%")
+    # k_max = 5
+    # for k in range(0,k_max):
+    #     # img_input = euler_integration(img_input, xi, adapted_sigma)
+    #     img_input = euler_integration_test(img_input, xi, adapted_sigma)
+    #     print("  [INFO] adaptive_smoothing -- " + str((k+1)/k_max*100) + "%")
 
+    img_input = euler_integration_test(img_input, xi, adapted_sigma)
 
-    print_debug(np.uint8(img_input))
+    # print_debug(np.uint8(img_input))
     return img_input
 
 def laplacian(img):
@@ -371,22 +358,22 @@ def print_lic(vector_field, length_pix = 10):
     print_debug(resultat[0])
 
 def main():
-    image_name = 'dogs.jpg'
+    # image_name = 'dogs.jpg'
     # image_name = 'chessboard.jpg'
-    # image_name = 'lesinge.png'
+    image_name = 'lesinge.png'
     img = cv2.imread('./images/'+image_name)
     img = cv2.cvtColor(img,cv2.COLOR_BGR2RGB)
 
     result_img = img.copy()
 
-    for i in range(0,1):
-        # print("[INFO] Iteration "+ str(i+1))
+    for i in range(0,5):
+        print("\n[INFO] Iteration "+ str(i+1))
 
         if(i != 0):
             img_gray = cv2.cvtColor(np.uint8(result_img),cv2.COLOR_RGB2GRAY)
             S_new = structure_tensor_calculation(img_gray)
             S = merge(S, S_new)
-            # print("[INFO] Merge tensor structure -- done")
+            print("[INFO] Merge tensor structure -- done")
         else :
             img_gray = cv2.cvtColor(np.uint8(result_img),cv2.COLOR_RGB2GRAY)
             S = structure_tensor_calculation(img_gray)
@@ -403,8 +390,8 @@ def main():
         # print_lic(xi)
         #-------------------------------
 
-        result_img = adaptive_smoothing(result_img,lambda1,lambda2,xi,S, sigma= 6.0)
-        print("[INFO] adaptive_smoothing -- done")
+        # result_img = adaptive_smoothing(result_img,lambda1,lambda2,xi,S, sigma= 6.0)
+        # print("[INFO] adaptive_smoothing -- done")
 
         result_img = sharpening(result_img,1)
         print("[INFO] sharpening -- done")
